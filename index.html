@@ -854,6 +854,19 @@ function endTournament() {
   endSeesaw();
 }
 
+
+window.initTournament = initTournament;
+window.startNextTourneyRound = startNextTourneyRound;
+window.recordRoundFinish = recordRoundFinish;
+window.showTournamentFinalResults = showTournamentFinalResults;
+window.endTournament = endTournament;
+Object.defineProperty(window, 'tourneyActive', { get() { return tourneyActive; }, set(v) { tourneyActive = v; } });
+Object.defineProperty(window, 'tourneyParty', { get() { return tourneyParty; }, set(v) { tourneyParty = v; } });
+Object.defineProperty(window, 'tourneyAuthority', { get() { return tourneyAuthority; }, set(v) { tourneyAuthority = v; } });
+Object.defineProperty(window, 'tourneyRound', { get() { return tourneyRound; }, set(v) { tourneyRound = v; } });
+Object.defineProperty(window, 'tourneyScores', { get() { return tourneyScores; }, set(v) { tourneyScores = v; } });
+Object.defineProperty(window, 'tourneyRoster', { get() { return tourneyRoster; }, set(v) { tourneyRoster = v; } });
+
 window.startSoloTennis=startTennis;window.launchSoloTennis=launchTennis;window.endSoloTennis=endTennis;window.hitTennis=hitTennis;window.startSoloMode=startSolo;window.endSoloMode=endSolo;
 const pressed={};let jumpV=0,dash=0,clock=new THREE.Clock();addEventListener('keydown',e=>{if(document.activeElement&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;const k=e.code;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ControlLeft','ControlRight'].includes(k))e.preventDefault();pressed[k]=true;if(k==='Space'&&tennisActive){hitTennis();return}if(k==='Space'&&window.lobbyLocalCat&&window.lobbyLocalCat.position.y<=.04)jumpV=7.5;if(k==='ShiftLeft'||k==='ShiftRight')dash=.22});addEventListener('keyup',e=>pressed[e.code]=false);
 function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight)}addEventListener('resize',resize);
@@ -869,7 +882,7 @@ function showRoom(){ window.lobbyLocalId=myId;$('entry').style.display='none';$(
 function renderPlayers(){const all=[{id:myId,name:myName,ready:readyState,host},...players];$('count').textContent=`${all.length} / 8`;$('players').innerHTML=all.map((p,i)=>`<div class="player"><div class="avatar">${['🐈','🐱','😺','🐾','😸','🐈‍⬛','😽','🙀'][i%8]}</div><div><div class="player-name">${escapeHtml(p.name)}${p.id===myId?'（あなた）':''}</div><div class="player-meta">${p.host?'ホスト':'プレイヤー'}</div></div><span class="ready ${p.ready?'yes':''}">${p.ready?'準備OK':'準備中'}</span></div>`).join('');$('waiting').textContent=all.length<2?'友だちを待っています…':all.every(p=>p.ready)?'全員準備OK！ゲーム本編の接続待ちです':'みんなの準備を待っています…';$('ready').disabled=false;$('party-start').disabled=!(host&&all.length>1&&all.every(p=>p.ready));$('party-start').textContent=host?'全員準備で剣バトル':'ホストが開始します';if(window.updateLobbyPlayers)window.updateLobbyPlayers(all)}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function broadcastRoster(){if(!host)return;const list=[{id:myId,name:myName,ready:readyState,host:true},...players];for(const conn of connections.values())if(conn.open)conn.send({type:'roster',players:list,roomCode});renderPlayers()}
-function attachHostConnection(conn){conn.on('open',()=>{if(connections.size>=7){conn.close();return}const info=conn.metadata||{};connections.set(conn.peer,conn);players.push({id:conn.peer,name:clean(info.name),ready:false,host:false});conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(msg.type==='chat-message'){ appendChatMessage(msg.sender||'プレイヤー', msg.text||''); window.broadcastPartyMessage?.(msg); return; }
+function attachHostConnection(conn){conn.on('open',()=>{if(connections.size>=7){conn.close();return}const info=conn.metadata||{};connections.set(conn.peer,conn);players.push({id:conn.peer,name:clean(info.name),ready:false,host:false});conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(msg.type==='chat-message'){ (window.appendChatMessage||appendChatMessage)(msg.sender||'プレイヤー', msg.text||''); window.broadcastPartyMessage?.(msg); return; }
 if(msg.type==='party-input'&&host){window.partyGameInputs[conn.peer]=msg.input||{};return}if(msg.type==='ready'){const p=players.find(x=>x.id===conn.peer);if(p){p.ready=!!msg.value;broadcastRoster()}}});conn.on('close',()=>{connections.delete(conn.peer);players=players.filter(p=>p.id!==conn.peer);delete window.partyGameInputs[conn.peer];broadcastRoster()});conn.on('error',()=>{});conn.send({type:'roster',players:[{id:myId,name:myName,ready:readyState,host:true},...players],roomCode});broadcastRoster()})}
 function teardown(){if(peer){try{peer.destroy()}catch{}}peer=null;host=false;roomCode='';myId='';readyState=false;connections.clear();players=[];isOpen=false;$('room').classList.remove('show');$('entry').style.display='grid';$('room-code').value='';$('ready').disabled=false;setOnline(false,'オンライン未接続');setError('')}
 function newPeer(id){return new Peer(id,{debug:0})}
@@ -877,7 +890,7 @@ function createRoom(){setError('');if(!window.Peer){setError('通信ライブラ
 function joinRoom(code){setError('');if(!window.Peer){setError('通信ライブラリを読み込めません。ネット接続を確認してください。');return}if(!window.isSecureContext&&!['localhost','127.0.0.1'].includes(location.hostname)){setError('オンライン接続にはHTTPSのページで開いてください。');return}code=code.toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length!==6){setError('6文字のルームコードを入力してください。');return}myName=clean($('name').value);host=false;roomCode=code;readyState=false;setOnline(false,'部屋に接続中…');peer=newPeer();peer.on('open',id=>{myId=id;const conn=peer.connect('nya'+code.toLowerCase(),{reliable:true,metadata:{name:myName}});connections.set('host',conn);conn.on('open',()=>{isOpen=true;showRoom();$('status-msg').textContent='ホストに接続しました！'});conn.on('data',msg=>{
   if(!msg)return;
   if(msg.type==='party-tourney-start'){
-    initTournament(true, msg.roster, false);
+    window.initTournament?.(true, msg.roster, false);
   } else if(msg.type==='party-tourney-round'){
     tourneyRound = msg.round;
     const gameTitles = {seesaw:'⚖️ 円形シーソー', tile:'🧱 くずれるタイル', sword:'⚔️ ソード・バトル', tennis:'🎾 ねこねこテニス'};
@@ -898,7 +911,7 @@ function joinRoom(code){setError('');if(!window.Peer){setError('通信ライブ�
   } else if(msg.type==='party-finish'){
     window.finishPartySword?.(msg.winner);
   } else if(msg.type==='party-end'){
-    endTournament();
+    window.endTournament?.();
   } else if(msg.type==='roster'){
     players=(msg.players||[]).filter(p=>p.id!==myId);
     renderPlayers();
@@ -908,7 +921,7 @@ $('create').addEventListener('click',createRoom);$('quick').addEventListener('cl
   if(!host)return;
   const roster=[{id:myId,name:myName,host:true,ready:true},...players];
   if(roster.length<2||!roster.every(p=>p.ready))return;
-  initTournament(true, roster, true);
+  window.initTournament?.(true, roster, true);
   window.broadcastPartyMessage({type:"party-tourney-start", roster});
 };
 window.launchPartySword = window.launchPartyTournament;addEventListener('beforeunload',()=>peer&&peer.destroy());
@@ -935,7 +948,7 @@ function toggleChat() {
 }
 chatHeader?.addEventListener("click", toggleChat);
 
-function appendChatMessage(senderName, text, type = 'normal') {
+window.appendChatMessage = function(senderName, text, type = 'normal') {
   if (!chatMessages) return;
   const msgDiv = document.createElement("div");
   msgDiv.className = "chat-msg";
@@ -961,7 +974,7 @@ function handleSendChat() {
   chatInput.value = "";
   
   const myName = localStorage.getItem('nyaName') || 'あなた';
-  appendChatMessage(myName, text, 'me');
+  (window.appendChatMessage||appendChatMessage)(myName, text, 'me');
   
   // If in online party, broadcast to other players
   if (window.broadcastPartyMessage) {
@@ -981,11 +994,20 @@ function handleSendChat() {
         const cpuNames = ["ミケ", "タマ", "シロ", "クロ", "トラ"];
         const randomCpu = "CPU " + cpuNames[Math.floor(Math.random() * cpuNames.length)];
         const reply = cpuReplies[Math.floor(Math.random() * cpuReplies.length)];
-        appendChatMessage(randomCpu, reply, 'cpu');
+        (window.appendChatMessage||appendChatMessage)(randomCpu, reply, 'cpu');
       }, 700 + Math.random() * 900);
     }
   }
 }
+
+
+chatInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    e.stopPropagation();
+    handleSendChat();
+  }
+});
 
 chatForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -1081,7 +1103,7 @@ cpuStartBtn?.addEventListener("click", () => {
     for (let i = 0; i < selectedCpuCount; i++) {
       roster.push({id: 'cpu-' + i, name: 'CPU ' + cpuNames[i % cpuNames.length], cpu: true});
     }
-    initTournament(false, roster, true);
+    window.initTournament?.(false, roster, true);
   } else {
     // Single game mode
     if (selectedSingleGame === 'seesaw') {

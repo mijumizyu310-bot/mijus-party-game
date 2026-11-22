@@ -51,6 +51,31 @@ html,body{width:100%;height:100%;overflow:hidden;background:#a4e9e5}.blob{displa
 .tourney-rank-row.top1{background:#fff9e0;border:2px solid #ffd45e;color:#856404}
 .tourney-rank-row.is-me{border-left:4px solid var(--pink)}
 
+
+/* In-Game / Lobby Chat Overlay */
+.chat-container{position:fixed;left:18px;bottom:18px;z-index:99990;width:min(320px,calc(100vw - 36px));pointer-events:auto;font-family:Nunito,sans-serif}
+.chat-box{background:#1e2d3fe3;backdrop-filter:blur(8px);border:2px solid #ffffff33;border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 24px #00000035;transition:height .2s ease}
+.chat-header{padding:8px 14px;background:#15223299;display:flex;align-items:center;justify-content:space-between;color:#a2b5cc;font-size:11px;font-weight:900;border-bottom:1px solid #ffffff15;cursor:pointer}
+.chat-header span b{color:var(--pink);margin-right:4px}
+.chat-toggle-btn{background:transparent;border:0;color:#a2b5cc;cursor:pointer;font-size:12px;font-weight:900}
+.chat-messages{height:140px;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:800;scroll-behavior:smooth}
+.chat-box.collapsed .chat-messages, .chat-box.collapsed .chat-input-bar{display:none}
+.chat-msg{line-height:1.4;word-break:break-all}
+.chat-msg .sender{font-weight:1000;color:#ffe178;margin-right:5px}
+.chat-msg .sender.is-me{color:#71ded0}
+.chat-msg .sender.is-cpu{color:#ff8db5}
+.chat-msg .sender.is-system{color:#a9b7c6;font-style:italic}
+.chat-msg .text{color:#f5f8fa}
+.chat-input-bar{display:flex;padding:7px;background:#162436d4;border-top:1px solid #ffffff15;gap:6px}
+.chat-input{flex:1;background:#24364c;border:1px solid #3c526d;border-radius:12px;padding:7px 10px;color:#fff;font-size:12px;font-weight:800;outline:none}
+.chat-input:focus{border-color:var(--mint)}
+.chat-send-btn{background:var(--pink);border:0;color:#fff;border-radius:10px;padding:0 12px;font-weight:1000;font-size:11px;cursor:pointer}
+.chat-send-btn:active{transform:scale(.95)}
+@media(max-width:760px){
+  .chat-container{left:10px;bottom:10px;width:min(270px,calc(100vw - 20px))}
+  .chat-messages{height:100px}
+}
+
 </style></head><body>
 <canvas id="lobby-scene" aria-label="3Dゲームロビーの島"></canvas><div class="blob b1"></div><div class="blob b2"></div><div class="wrap">
 <header class="nav"><div class="brand">Miju's <b>Party Game!</b></div><button id="app-update" class="app-update" type="button" hidden>アプリ更新を確認</button><div class="online"><i class="dot" id="dot"></i><span id="net-label">オンライン未接続</span></div></header>
@@ -844,7 +869,8 @@ function showRoom(){ window.lobbyLocalId=myId;$('entry').style.display='none';$(
 function renderPlayers(){const all=[{id:myId,name:myName,ready:readyState,host},...players];$('count').textContent=`${all.length} / 8`;$('players').innerHTML=all.map((p,i)=>`<div class="player"><div class="avatar">${['🐈','🐱','😺','🐾','😸','🐈‍⬛','😽','🙀'][i%8]}</div><div><div class="player-name">${escapeHtml(p.name)}${p.id===myId?'（あなた）':''}</div><div class="player-meta">${p.host?'ホスト':'プレイヤー'}</div></div><span class="ready ${p.ready?'yes':''}">${p.ready?'準備OK':'準備中'}</span></div>`).join('');$('waiting').textContent=all.length<2?'友だちを待っています…':all.every(p=>p.ready)?'全員準備OK！ゲーム本編の接続待ちです':'みんなの準備を待っています…';$('ready').disabled=false;$('party-start').disabled=!(host&&all.length>1&&all.every(p=>p.ready));$('party-start').textContent=host?'全員準備で剣バトル':'ホストが開始します';if(window.updateLobbyPlayers)window.updateLobbyPlayers(all)}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function broadcastRoster(){if(!host)return;const list=[{id:myId,name:myName,ready:readyState,host:true},...players];for(const conn of connections.values())if(conn.open)conn.send({type:'roster',players:list,roomCode});renderPlayers()}
-function attachHostConnection(conn){conn.on('open',()=>{if(connections.size>=7){conn.close();return}const info=conn.metadata||{};connections.set(conn.peer,conn);players.push({id:conn.peer,name:clean(info.name),ready:false,host:false});conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(msg.type==='party-input'&&host){window.partyGameInputs[conn.peer]=msg.input||{};return}if(msg.type==='ready'){const p=players.find(x=>x.id===conn.peer);if(p){p.ready=!!msg.value;broadcastRoster()}}});conn.on('close',()=>{connections.delete(conn.peer);players=players.filter(p=>p.id!==conn.peer);delete window.partyGameInputs[conn.peer];broadcastRoster()});conn.on('error',()=>{});conn.send({type:'roster',players:[{id:myId,name:myName,ready:readyState,host:true},...players],roomCode});broadcastRoster()})}
+function attachHostConnection(conn){conn.on('open',()=>{if(connections.size>=7){conn.close();return}const info=conn.metadata||{};connections.set(conn.peer,conn);players.push({id:conn.peer,name:clean(info.name),ready:false,host:false});conn.on('data',msg=>{if(!msg||typeof msg!=='object')return;if(msg.type==='chat-message'){ appendChatMessage(msg.sender||'プレイヤー', msg.text||''); window.broadcastPartyMessage?.(msg); return; }
+if(msg.type==='party-input'&&host){window.partyGameInputs[conn.peer]=msg.input||{};return}if(msg.type==='ready'){const p=players.find(x=>x.id===conn.peer);if(p){p.ready=!!msg.value;broadcastRoster()}}});conn.on('close',()=>{connections.delete(conn.peer);players=players.filter(p=>p.id!==conn.peer);delete window.partyGameInputs[conn.peer];broadcastRoster()});conn.on('error',()=>{});conn.send({type:'roster',players:[{id:myId,name:myName,ready:readyState,host:true},...players],roomCode});broadcastRoster()})}
 function teardown(){if(peer){try{peer.destroy()}catch{}}peer=null;host=false;roomCode='';myId='';readyState=false;connections.clear();players=[];isOpen=false;$('room').classList.remove('show');$('entry').style.display='grid';$('room-code').value='';$('ready').disabled=false;setOnline(false,'オンライン未接続');setError('')}
 function newPeer(id){return new Peer(id,{debug:0})}
 function createRoom(){setError('');if(!window.Peer){setError('通信ライブラリを読み込めません。ネット接続を確認してください。');return}if(!window.isSecureContext&&!['localhost','127.0.0.1'].includes(location.hostname)){setError('オンライン接続にはHTTPSのページで開いてください。');return}myName=clean($('name').value);host=true;readyState=false;roomCode=randomCode();setOnline(false,'部屋を作成中…');const peerId='nya'+roomCode.toLowerCase();peer=newPeer(peerId);peer.on('open',id=>{isOpen=true;myId=id;showRoom();peer.on('connection',attachHostConnection)});peer.on('error',err=>{if(err.type==='unavailable-id'){try{peer.destroy()}catch{}roomCode=randomCode();peer=newPeer('nya'+roomCode.toLowerCase());peer.on('open',id=>{isOpen=true;myId=id;showRoom();peer.on('connection',attachHostConnection)});peer.on('error',e=>setError('部屋を作れませんでした：'+e.type));return}setOnline(false,'接続エラー');setError(err.type==='network'?'通信サーバーに接続できません。':'部屋を作れませんでした：'+err.type)})}
@@ -891,6 +917,80 @@ window.launchPartySword = window.launchPartyTournament;addEventListener('beforeu
 document.querySelector("#solo-again")?.addEventListener("click",()=>window.startSoloMode&&window.startSoloMode(window.currentCpuCount||3));
 document.querySelector("#solo-exit")?.addEventListener("click",()=>window.endSoloMode&&window.endSoloMode());
 document.querySelector("#solo-back")?.addEventListener("click",()=>window.endSoloMode&&window.endSoloMode());
+
+
+// ==================== CHAT SYSTEM ====================
+const chatBox = document.querySelector("#chat-box");
+const chatHeader = document.querySelector("#chat-header");
+const chatToggleBtn = document.querySelector("#chat-toggle");
+const chatMessages = document.querySelector("#chat-messages");
+const chatForm = document.querySelector("#chat-form");
+const chatInput = document.querySelector("#chat-input");
+
+let chatCollapsed = false;
+function toggleChat() {
+  chatCollapsed = !chatCollapsed;
+  chatBox.classList.toggle("collapsed", chatCollapsed);
+  chatToggleBtn.textContent = chatCollapsed ? "▲" : "▼";
+}
+chatHeader?.addEventListener("click", toggleChat);
+
+function appendChatMessage(senderName, text, type = 'normal') {
+  if (!chatMessages) return;
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "chat-msg";
+  
+  const senderSpan = document.createElement("span");
+  senderSpan.className = "sender " + (type === 'me' ? 'is-me' : (type === 'cpu' ? 'is-cpu' : (type === 'system' ? 'is-system' : '')));
+  senderSpan.textContent = senderName + ":";
+  
+  const textSpan = document.createElement("span");
+  textSpan.className = "text";
+  textSpan.textContent = " " + text;
+  
+  msgDiv.appendChild(senderSpan);
+  msgDiv.appendChild(textSpan);
+  chatMessages.appendChild(msgDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function handleSendChat() {
+  if (!chatInput) return;
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
+  
+  const myName = localStorage.getItem('nyaName') || 'あなた';
+  appendChatMessage(myName, text, 'me');
+  
+  // If in online party, broadcast to other players
+  if (window.broadcastPartyMessage) {
+    window.broadcastPartyMessage({
+      type: "chat-message",
+      sender: myName,
+      text: text
+    });
+  }
+  
+  // If solo/CPU mode, CPU occasionally replies!
+  if (!tourneyParty && typeof soloActive !== 'undefined') {
+    const isPlaying = soloActive || swordActive || seesawActive || tennisActive || tourneyActive;
+    if (isPlaying && Math.random() < 0.65) {
+      setTimeout(() => {
+        const cpuReplies = ["よろしくニャ！", "負けないニャ〜！", "うわああ！", "落ちそうニャ！", "ナイス！", "がんばるニャ！", "🐾"];
+        const cpuNames = ["ミケ", "タマ", "シロ", "クロ", "トラ"];
+        const randomCpu = "CPU " + cpuNames[Math.floor(Math.random() * cpuNames.length)];
+        const reply = cpuReplies[Math.floor(Math.random() * cpuReplies.length)];
+        appendChatMessage(randomCpu, reply, 'cpu');
+      }, 700 + Math.random() * 900);
+    }
+  }
+}
+
+chatForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  handleSendChat();
+});
 
 // CPU Mode dialog and Tournament UI handling
 let selectedMatchFormat = 'tournament'; // 'tournament' or 'single'
@@ -1096,6 +1196,24 @@ document.querySelector("#tennis-intro-start").addEventListener("click",()=>{docu
       <button class="btn leave" id="cpu-dialog-cancel">もどる</button>
       <button class="btn primary" id="cpu-dialog-start">ゲーム開始！ ▶</button>
     </div>
+  </div>
+</div>
+
+
+<!-- In-Game & Lobby Chat Box -->
+<div class="chat-container" id="chat-container">
+  <div class="chat-box" id="chat-box">
+    <div class="chat-header" id="chat-header">
+      <span>💬 <b>CHAT</b> みんなで会話</span>
+      <button class="chat-toggle-btn" id="chat-toggle">▼</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-msg"><span class="sender is-system">[システム]</span><span class="text">チャットへようこそ！Enterで送信できます</span></div>
+    </div>
+    <form class="chat-input-bar" id="chat-form" onsubmit="return false;">
+      <input type="text" class="chat-input" id="chat-input" maxlength="60" placeholder="メッセージを入力…" autocomplete="off">
+      <button type="submit" class="chat-send-btn" id="chat-send">送信</button>
+    </form>
   </div>
 </div>
 

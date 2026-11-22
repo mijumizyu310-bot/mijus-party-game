@@ -23,10 +23,14 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci
       - run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
-      - name: Create release tag
+      - name: Ensure release tag exists
         run: |
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          $tag = "v${{ inputs.version }}"
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            git tag $tag
+            git push origin $tag
+          }
       - name: Prepare one-click game patch
         run: Copy-Item ../index.html game-patch.html
       - name: Build and publish Windows installer

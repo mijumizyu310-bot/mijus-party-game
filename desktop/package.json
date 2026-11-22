@@ -1,0 +1,63 @@
+{
+  "name": "mijus-party-game",
+  "version": "1.0.0",
+  "description": "Miju's Party Game! desktop app",
+  "main": "main.cjs",
+  "author": "Miju",
+  "license": "UNLICENSED",
+  "repository": "https://github.com/mijumizyu310-bot/mijus-party-game",
+  "scripts": {
+    "sync-game": "node sync-game.cjs",
+    "start": "npm run sync-game && electron .",
+    "pack": "npm run sync-game && electron-builder --win nsis --publish never",
+    "portable": "npm run sync-game && electron-builder --win dir --publish never",
+    "release": "npm run sync-game && electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.12"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.18.1"
+  },
+  "build": {
+    "appId": "com.miju.partygame",
+    "productName": "Miju's Party Game!",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "game/index.html",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mijumizyu310-bot",
+        "repo": "mijus-party-game",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "Mijus-Party-Game-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
+
+
+
+

@@ -1,0 +1,35 @@
+name: Publish Windows app
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New app version, for example 1.0.1
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version --allow-same-version
+      - name: Prepare one-click game patch
+        run: Copy-Item ../index.html game-patch.html
+      - name: Build and publish Windows installer
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach one-click game patch
+        run: gh release upload "v${{ inputs.version }}" game-patch.html --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
